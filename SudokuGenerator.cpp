@@ -220,52 +220,56 @@ const int solveBoard(Board board, Points points) {
 
     auto pointIter = points.begin();
     pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-    unsigned short attempt = pointIter->availability.back();
+    auto availableIter = pointIter->availability.begin();
     while (pointIter != points.end())
     {
         while (true)
         {
-            if (pointIter->availability.size())
+            if (availableIter != pointIter->availability.end())
             {
-                solution.push_back(attempt);
-                board.alterCell(pointIter->row, pointIter->col, attempt);
-                pointIter->availability.pop_back();
+                solution.push_back(*availableIter);
+                board.alterCell(pointIter->row, pointIter->col, *availableIter);
+                ++availableIter;
                 break;
             }
-            else if (pointIter == points.begin())
+            else if (availableIter == pointIter->availability.end() && solution.size() < points.size())
             {
-                break;
-            }
-            else
-            {
-                board.removeCell(pointIter->row, pointIter->col);
-                solution.pop_back();
-                --pointIter;
-                if (board.getCell(pointIter->row, pointIter->col) == attempt)
-                {
-                    attempt = pointIter->availability.back();
+                if (pointIter == points.begin())
                     break;
+
+                --pointIter;
+                for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
+                {
+                    if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
+                    {
+                        board.removeCell(pointIter->row, pointIter->col);
+                        solution.pop_back();
+                        availableIter = iter + 1;
+                        break;
+                    }
                 }
             }
         }
         if (solution.size() == points.size())
         {
             solutions.push_back(solution);
-            if (solutions.size() > 1)
-            {
-                break;
-            }
             board.removeCell(pointIter->row, pointIter->col);
             solution.pop_back();
-            if (pointIter == points.begin())
+            if (pointIter != points.begin())
             {
-                break;
+                --pointIter;
             }
-            --pointIter;
-            if (board.getCell(pointIter->row, pointIter->col) == attempt)
-            {
-                attempt = pointIter->availability.back();
+            else
                 break;
+            for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
+            {
+                if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
+                {
+                    board.removeCell(pointIter->row, pointIter->col);
+                    solution.pop_back();
+                    availableIter = iter + 1;
+                    break;
+                }
             }
         }
         else if (solution.empty() && pointIter == points.begin())
@@ -276,7 +280,7 @@ const int solveBoard(Board board, Points points) {
         {
             ++pointIter;
             pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-            attempt = pointIter->availability.back();
+            availableIter = pointIter->availability.begin();
         }
     }
     return solutions.size();
