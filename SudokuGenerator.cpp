@@ -34,6 +34,25 @@ struct Point
     {
         availability.push_back(value);
     }
+    const bool operator==(const Point& other) const
+    {
+        return row == other.row && col == other.col;
+    }
+    const bool operator!=(const Point& other) const
+    {
+        return !(*this == other);
+    }
+    const bool operator<(const Point& other) const
+    {
+        if (row < other.row)
+            return true;
+        else if (other.row < row)
+            return false;
+        else if (col < other.col)
+            return true;
+        else
+            return false;
+    }
 };
 
 
@@ -43,8 +62,10 @@ std::random_device rd;
 std::mt19937 rngeesus(rd());
 std::uniform_int_distribution<unsigned short> quarterDistribution(0, 3);
 std::uniform_int_distribution<unsigned short> fullDistribution(0, 8);
+std::uniform_int_distribution<unsigned short> allCells(0, WIDTH* HEIGHT - 1);
 auto quadrantCoordinate = std::bind(quarterDistribution, rngeesus);
 auto boardCoordinate = std::bind(fullDistribution, rngeesus);
+auto randomCell = std::bind(allCells, rngeesus);
 
 void fillBoard(Board& board);
 void displayBoard(const Board& board);
@@ -53,102 +74,83 @@ const int solveBoard(Board board, Points points);
 int main()
 {
     Board board;
-    Points points;
+    std::vector<unsigned short> values;
     Points removed;
     fillBoard(board);
     int clues{ WIDTH * HEIGHT };
     int solutions{ 0 };
     int threshold{ 0 };
+
     while (clues >= 20 && threshold < 20)
     {
-        unsigned short row = quadrantCoordinate();
-        unsigned short col = quadrantCoordinate();
-        
-        points.clear();
-        if (clues >= (WIDTH * HEIGHT) - 30)
+
+        unsigned short cell{ 0 };
+        do
         {
-            while (board[row * WIDTH + col] == 0)
+            cell = randomCell();
+            
+        } while (board[cell] == 0);
+        
+        Point firstQuad(cell / WIDTH, cell % WIDTH);
+        Point secondQuad(firstQuad.row, WIDTH - 1 - firstQuad.col);
+        Point thirdQuad(HEIGHT - 1 - firstQuad.row, firstQuad.col);
+        Point fourthQuad(HEIGHT - 1 - firstQuad.row, WIDTH - 1 - firstQuad.col);
+
+        if (clues < WIDTH * HEIGHT - 40)
+        {
+            removed.push_back(firstQuad);
+            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
+            --clues;
+        }
+        else if (clues < WIDTH * HEIGHT - 20)
+        {
+            if (firstQuad == fourthQuad)
             {
-                row = quadrantCoordinate();
-                col = quadrantCoordinate();
+                continue;
             }
-            removed.push_back(Point(row, col, board[row * WIDTH + col]));
-            board.removeCell(row, col);
-            removed.push_back(Point((WIDTH - 1) - row, (HEIGHT - 1) - col, board[(HEIGHT - 1 - row) * WIDTH + (WIDTH - 1 - col)]));
-            board.removeCell((WIDTH - 1) - row, (HEIGHT - 1) - col);
+            removed.push_back(firstQuad);
+            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
+            removed.push_back(fourthQuad);
+            values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
             clues -= 2;
         }
         else
         {
-            while (board[row * WIDTH + col] == 0)
+            if (firstQuad == secondQuad || firstQuad == thirdQuad || firstQuad == fourthQuad)
             {
-                row = boardCoordinate();
-                col = boardCoordinate();
+                continue;
             }
-            removed.push_back(Point(row, col, board[row * WIDTH + col]));
-            board.removeCell(row, col);
-            --clues;
-        }
-        if (clues >= (WIDTH * HEIGHT) - 20)
-        {
-            removed.push_back(Point((WIDTH - 1) - row, col, board[(WIDTH - 1 - row) * WIDTH + col]));
-            board.removeCell((WIDTH - 1) - row, col);
-            removed.push_back(Point(row, (HEIGHT - 1) - col, board[row * WIDTH + (HEIGHT - 1 - col)]));
-            board.removeCell(row, (HEIGHT - 1) - col);
-            clues -= 2;
+            removed.push_back(firstQuad);
+            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
+            removed.push_back(secondQuad);
+            values.push_back(board.getCell(secondQuad.row, secondQuad.col));
+            removed.push_back(thirdQuad);
+            values.push_back(board.getCell(thirdQuad.row, thirdQuad.col));
+            removed.push_back(fourthQuad);
+            values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
+            clues -= 4;
         }
 
-        for (int iRow = 0; iRow < HEIGHT; ++iRow)
+        for (auto point : removed)
         {
-            for (int jCol = 0; jCol < WIDTH; ++jCol)
-            {
-                const int number = board[iRow * WIDTH + jCol];
-                if (number == 0)
-                {
-                    points.push_back(Point(iRow, jCol));
-                }
-            }
+            board.removeCell(point.row, point.col);
         }
  
-        solutions = solveBoard(board, points);
+        solutions = solveBoard(board, removed);
         // Reinserts the last removed points from the list of removed points until
         // the board has a single solution
         while (solutions != 1 && !removed.empty())
         {
             auto removedPoint = removed.back();
-            board.addCell(removedPoint.row, removedPoint.col, removedPoint.availability[0]);
+            board.alterCell(removedPoint.row, removedPoint.col, values.back());
             removed.pop_back();
-
-            // I want to find a better way to handle this part. 
-            for (auto pIter = points.begin(); pIter != points.end(); ++pIter)
-            {
-                if (pIter->row == removedPoint.row && pIter->col == removedPoint.col)
-                {
-                    points.erase(pIter);
-                    break;
-                }
-            }
-            solutions = solveBoard(board, points);
+            values.pop_back();
+            solutions = solveBoard(board, removed);
             ++clues;
             ++threshold;
         }
     }
-
-    solutions = solveBoard(board, points);
-
-    if (solutions > 1)
-    {
-        std::cout << "The puzzle has more than one solution" << std::endl;
-    }
-    else if (solutions == 1)
-    {
-        std::cout << "The puzzle has one solution" << std::endl;
-    }
-    else
-    {
-        std::cout << "The puzzle has no solution" << std::endl;
-    }
-
+    std::cout << "Puzzle has been generated";
     std::cin.get();
     displayBoard(board);
 }
@@ -164,7 +166,7 @@ void fillBoard(Board& board)
         while (col < WIDTH)
         {
             std::vector<unsigned short> availability = board.getAvailability(row, col);
-            // if there is no availability for the current cell then the row is messed up and needs to be redone.
+            // if there is no availability for the current cell then the row is messed up and needs to be rerandomized.
             if (availability.size() == 0)
             {
                 board.clearRow(row);
@@ -182,7 +184,7 @@ void fillBoard(Board& board)
                 continue;
             }
             std::shuffle(availability.begin(), availability.end(), rngeesus);
-            board.addCell(row, col, availability[0]);
+            board.alterCell(row, col, availability[0]);
             ++col;
         }
         col = 0;
@@ -196,7 +198,7 @@ void displayBoard(const Board& board)
     std::cout << "-------------------------------------" << std::endl;
     for (size_t i = 0; i < WIDTH * HEIGHT; ++i)
     {
-        if (i != 0 && i % 9 == 0)
+        if (i != 0 && i % WIDTH == 0)
         {
             std::cout << "|" << std::endl << "-------------------------------------" << std::endl;
         }
@@ -209,61 +211,61 @@ void displayBoard(const Board& board)
 }
 
 const int solveBoard(Board board, Points points) {
+
+    // sort the points to make finding the solution easier
+    std::stable_sort(points.begin(), points.end());
+
     std::vector<std::vector<unsigned short>> solutions;
     std::vector<unsigned short> solution;
 
     auto pointIter = points.begin();
     pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-    auto availableIter = pointIter->availability.begin();
+    unsigned short attempt = pointIter->availability.back();
     while (pointIter != points.end())
     {
         while (true)
         {
-            if (availableIter != pointIter->availability.end())
+            if (pointIter->availability.size())
             {
-                solution.push_back(*availableIter);
-                board.addCell(pointIter->row, pointIter->col, *availableIter);
-                ++availableIter;
+                solution.push_back(attempt);
+                board.alterCell(pointIter->row, pointIter->col, attempt);
+                pointIter->availability.pop_back();
                 break;
             }
-            else if (availableIter == pointIter->availability.end() && solution.size() < points.size())
+            else if (pointIter == points.begin())
             {
-                if (pointIter == points.begin())
-                    break;
-
+                break;
+            }
+            else
+            {
+                board.removeCell(pointIter->row, pointIter->col);
+                solution.pop_back();
                 --pointIter;
-                for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
+                if (board.getCell(pointIter->row, pointIter->col) == attempt)
                 {
-                    if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
-                    {
-                        board.removeCell(pointIter->row, pointIter->col);
-                        solution.pop_back();
-                        availableIter = iter + 1;
-                        break;
-                    }
+                    attempt = pointIter->availability.back();
+                    break;
                 }
             }
         }
         if (solution.size() == points.size())
         {
             solutions.push_back(solution);
+            if (solutions.size() > 1)
+            {
+                break;
+            }
             board.removeCell(pointIter->row, pointIter->col);
             solution.pop_back();
-            if (pointIter != points.begin())
+            if (pointIter == points.begin())
             {
-                --pointIter;
-            }
-            else
                 break;
-            for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
+            }
+            --pointIter;
+            if (board.getCell(pointIter->row, pointIter->col) == attempt)
             {
-                if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
-                {
-                    board.removeCell(pointIter->row, pointIter->col);
-                    solution.pop_back();
-                    availableIter = iter + 1;
-                    break;
-                }
+                attempt = pointIter->availability.back();
+                break;
             }
         }
         else if (solution.empty() && pointIter == points.begin())
@@ -274,7 +276,7 @@ const int solveBoard(Board board, Points points) {
         {
             ++pointIter;
             pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-            availableIter = pointIter->availability.begin();
+            attempt = pointIter->availability.back();
         }
     }
     return solutions.size();
