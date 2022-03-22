@@ -49,12 +49,12 @@ std::vector<unsigned short> Board::getAvailability(const unsigned short row, con
 	return available;
 }
 
-void Board::alterCell(const unsigned short row, const unsigned short col, const unsigned short value)
+void Board::fillCell(const unsigned short row, const unsigned short col, const unsigned short value)
 {
 	m_cells[row * WIDTH + col] = value;
 }
 
-void Board::removeCell(const unsigned short row, const unsigned short col)
+void Board::clearCell(const unsigned short row, const unsigned short col)
 {
 	if (m_cells[row * WIDTH + col] != 0)
 		m_cells[row * WIDTH + col] = 0;
@@ -64,6 +64,6 @@ void Board::clearRow(const unsigned short row)
 {
 	for (unsigned short i = 0; i < WIDTH; ++i)
 	{
-		removeCell(row, i);
+		clearCell(row, i);
 	}
 }

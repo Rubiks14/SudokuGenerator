@@ -14,8 +14,8 @@
 // the points that are actively being removed from the puzzle are
 // being stored twice. This seems like a waste. Is it possible to only store them once?
 // One solution is to track each cell as they are removed and then when the list of cells
-// is passed into the solving algorithm then they are ordered by row and column so that
-// they are worked from top to bottom, left to right.
+// is passed into the solving algorithm  they are ordered by row and column so that
+// they are worked from left to right, top to bottom.
 
 // The availability is being attached to the point struct but doesn't really need to be there.
 // is there a better way to store that information so it is only being stored when needed and
@@ -60,11 +60,7 @@ typedef std::vector<Point> Points;
 
 std::random_device rd;
 std::mt19937 rngeesus(rd());
-std::uniform_int_distribution<unsigned short> quarterDistribution(0, 3);
-std::uniform_int_distribution<unsigned short> fullDistribution(0, 8);
 std::uniform_int_distribution<unsigned short> allCells(0, WIDTH* HEIGHT - 1);
-auto quadrantCoordinate = std::bind(quarterDistribution, rngeesus);
-auto boardCoordinate = std::bind(fullDistribution, rngeesus);
 auto randomCell = std::bind(allCells, rngeesus);
 
 void fillBoard(Board& board);
@@ -133,7 +129,7 @@ int main()
 
         for (auto point : removed)
         {
-            board.removeCell(point.row, point.col);
+            board.clearCell(point.row, point.col);
         }
  
         solutions = solveBoard(board, removed);
@@ -142,7 +138,7 @@ int main()
         while (solutions != 1 && !removed.empty())
         {
             auto removedPoint = removed.back();
-            board.alterCell(removedPoint.row, removedPoint.col, values.back());
+            board.fillCell(removedPoint.row, removedPoint.col, values.back());
             removed.pop_back();
             values.pop_back();
             solutions = solveBoard(board, removed);
@@ -184,7 +180,7 @@ void fillBoard(Board& board)
                 continue;
             }
             std::shuffle(availability.begin(), availability.end(), rngeesus);
-            board.alterCell(row, col, availability[0]);
+            board.fillCell(row, col, availability[0]);
             ++col;
         }
         col = 0;
@@ -212,7 +208,9 @@ void displayBoard(const Board& board)
 
 const int solveBoard(Board board, Points points) {
 
-    // sort the points to make finding the solution easier
+    // sort the points so they are aligned left to right top to bottom.
+    // this makes finding a solution much faster than trying to solve the board
+    // with the empty points stored in a random order.
     std::stable_sort(points.begin(), points.end());
 
     std::vector<std::vector<unsigned short>> solutions;
@@ -220,57 +218,46 @@ const int solveBoard(Board board, Points points) {
 
     auto pointIter = points.begin();
     pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-    auto availableIter = pointIter->availability.begin();
-    while (pointIter != points.end())
+    unsigned short attempt{ 0 };
+    if (pointIter->availability.size())
     {
-        while (true)
+        attempt = pointIter->availability.front();
+    }
+    while (true)
+    {
+        if (attempt != 0)
         {
-            if (availableIter != pointIter->availability.end())
-            {
-                solution.push_back(*availableIter);
-                board.alterCell(pointIter->row, pointIter->col, *availableIter);
-                ++availableIter;
-                break;
-            }
-            else if (availableIter == pointIter->availability.end() && solution.size() < points.size())
-            {
-                if (pointIter == points.begin())
-                    break;
-
-                --pointIter;
-                for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
-                {
-                    if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
-                    {
-                        board.removeCell(pointIter->row, pointIter->col);
-                        solution.pop_back();
-                        availableIter = iter + 1;
-                        break;
-                    }
-                }
-            }
+            solution.push_back(attempt);
+            board.fillCell(pointIter->row, pointIter->col, attempt);
+            pointIter->availability.erase(pointIter->availability.begin());
         }
+        else if (solution.size() < points.size() && pointIter != points.begin())
+        {
+            --pointIter;
+            board.clearCell(pointIter->row, pointIter->col);
+            solution.pop_back();
+            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
+            continue;
+        }
+
         if (solution.size() == points.size())
         {
             solutions.push_back(solution);
-            board.removeCell(pointIter->row, pointIter->col);
-            solution.pop_back();
-            if (pointIter != points.begin())
+            if (solutions.size() > 1)
             {
-                --pointIter;
-            }
-            else
                 break;
-            for (auto iter = pointIter->availability.begin(); iter != pointIter->availability.end(); ++iter)
-            {
-                if (board[pointIter->row * WIDTH + pointIter->col] == *iter)
-                {
-                    board.removeCell(pointIter->row, pointIter->col);
-                    solution.pop_back();
-                    availableIter = iter + 1;
-                    break;
-                }
             }
+
+            board.clearCell(pointIter->row, pointIter->col);
+            solution.pop_back();
+
+            if (pointIter == points.begin())
+                break;
+
+            --pointIter;
+            board.clearCell(pointIter->row, pointIter->col);
+            solution.pop_back();
+            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
         }
         else if (solution.empty() && pointIter == points.begin())
         {
@@ -280,7 +267,7 @@ const int solveBoard(Board board, Points points) {
         {
             ++pointIter;
             pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-            availableIter = pointIter->availability.begin();
+            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
         }
     }
     return solutions.size();
