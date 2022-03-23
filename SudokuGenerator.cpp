@@ -11,16 +11,6 @@
 
 // Places to refactor
 
-// the points that are actively being removed from the puzzle are
-// being stored twice. This seems like a waste. Is it possible to only store them once?
-// One solution is to track each cell as they are removed and then when the list of cells
-// is passed into the solving algorithm  they are ordered by row and column so that
-// they are worked from left to right, top to bottom.
-
-// The availability is being attached to the point struct but doesn't really need to be there.
-// is there a better way to store that information so it is only being stored when needed and
-// not wasting memory?
-
 // the code used to backtrack through the solution is duplicated in the solveBoard function. It is
 // being used when there is no availability for the current cell and again when a solution is found
 // and the algorithm is backtracking through the previous solution to look for alternate solutions
@@ -28,12 +18,7 @@
 struct Point
 {
     unsigned short row{ 0 }, col{ 0 };
-    std::vector<unsigned short> availability;
     explicit Point(unsigned short r, unsigned short c) : row{ r }, col{ c } {}
-    explicit Point(unsigned short r, unsigned short c, unsigned short value) : row{r}, col{c} 
-    {
-        availability.push_back(value);
-    }
     const bool operator==(const Point& other) const
     {
         return row == other.row && col == other.col;
@@ -62,7 +47,7 @@ std::random_device rd;
 std::mt19937 rngeesus(rd());
 std::uniform_int_distribution<unsigned short> allCells(0, WIDTH* HEIGHT - 1);
 auto randomCell = std::bind(allCells, rngeesus);
-
+const bool removeCells(Board& board, Points& removed, std::vector<unsigned short>& values, unsigned short& clues);
 void fillBoard(Board& board);
 void displayBoard(const Board& board);
 const int solveBoard(Board board, Points points);
@@ -73,63 +58,21 @@ int main()
     std::vector<unsigned short> values;
     Points removed;
     fillBoard(board);
-    int clues{ WIDTH * HEIGHT };
+    unsigned short clues{ WIDTH * HEIGHT };
+    
     int solutions{ 0 };
     int threshold{ 0 };
 
     while (clues >= 20 && threshold < 20)
     {
-
-        unsigned short cell{ 0 };
-        do
+        if (!removeCells(board, removed, values, clues))
         {
-            cell = randomCell();
-            
-        } while (board[cell] == 0);
-        
-        Point firstQuad(cell / WIDTH, cell % WIDTH);
-        Point secondQuad(firstQuad.row, WIDTH - 1 - firstQuad.col);
-        Point thirdQuad(HEIGHT - 1 - firstQuad.row, firstQuad.col);
-        Point fourthQuad(HEIGHT - 1 - firstQuad.row, WIDTH - 1 - firstQuad.col);
-
-        if (clues < WIDTH * HEIGHT - 40)
-        {
-            removed.push_back(firstQuad);
-            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
-            --clues;
-        }
-        else if (clues < WIDTH * HEIGHT - 20)
-        {
-            if (firstQuad == fourthQuad)
-            {
-                continue;
-            }
-            removed.push_back(firstQuad);
-            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
-            removed.push_back(fourthQuad);
-            values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
-            clues -= 2;
-        }
-        else
-        {
-            if (firstQuad == secondQuad || firstQuad == thirdQuad || firstQuad == fourthQuad)
-            {
-                continue;
-            }
-            removed.push_back(firstQuad);
-            values.push_back(board.getCell(firstQuad.row, firstQuad.col));
-            removed.push_back(secondQuad);
-            values.push_back(board.getCell(secondQuad.row, secondQuad.col));
-            removed.push_back(thirdQuad);
-            values.push_back(board.getCell(thirdQuad.row, thirdQuad.col));
-            removed.push_back(fourthQuad);
-            values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
-            clues -= 4;
+            continue;
         }
 
         for (auto point : removed)
         {
-            board.clearCell(point.row, point.col);
+            board.emptyCell(point.row, point.col);
         }
  
         solutions = solveBoard(board, removed);
@@ -153,39 +96,75 @@ int main()
 
 void fillBoard(Board& board) 
 {
-    unsigned short row = 0;
-    unsigned short col = 0;
-    unsigned short messedUpCount = 0;
-
-    while (row < HEIGHT)
+    for (unsigned short i = 0; i < WIDTH * HEIGHT;)
     {
-        while (col < WIDTH)
+        unsigned short row = i / WIDTH;
+        unsigned short col = i % WIDTH;
+
+        std::vector<unsigned short> availability = board.getAvailability(row, col);
+        // if there is no availability for the current cell then the row is messed up and needs to be rerandomized.
+        if (availability.size() == 0)
         {
-            std::vector<unsigned short> availability = board.getAvailability(row, col);
-            // if there is no availability for the current cell then the row is messed up and needs to be rerandomized.
-            if (availability.size() == 0)
+            board.clearRow(row);
+            i = row * WIDTH;
+
+            static unsigned short messedUpCount = 0;
+            ++messedUpCount;
+            if (messedUpCount == 5)
             {
-                board.clearRow(row);
-                col = 0;
-                ++messedUpCount;
-                if (messedUpCount == 5)
+                for (int clearRow = 0; clearRow < HEIGHT; ++clearRow)
                 {
-                    for (int i = 0; i < HEIGHT; ++i)
-                    {
-                        board.clearRow(i);
-                        col = 0;
-                        row = 0;
-                    }
+                    board.clearRow(clearRow);
                 }
-                continue;
+                i = 0;
             }
+        }
+        else
+        {
             std::shuffle(availability.begin(), availability.end(), rngeesus);
             board.fillCell(row, col, availability[0]);
-            ++col;
+            ++i;
         }
-        col = 0;
-        ++row;
     }
+}
+
+const bool removeCells(Board& board, Points& removed, std::vector<unsigned short>& values, unsigned short& clues)
+{
+    unsigned short cell{ 0 };
+    do
+    {
+        cell = randomCell();
+
+    } while (board[cell] == 0);
+
+    Point firstQuad(cell / WIDTH, cell % WIDTH);
+    Point secondQuad(firstQuad.row, WIDTH - 1 - firstQuad.col);
+    Point thirdQuad(HEIGHT - 1 - firstQuad.row, firstQuad.col);
+    Point fourthQuad(HEIGHT - 1 - firstQuad.row, WIDTH - 1 - firstQuad.col);
+
+    if (clues < WIDTH * HEIGHT - 20 && firstQuad != fourthQuad)
+    {
+        removed.push_back(firstQuad);
+        values.push_back(board.getCell(firstQuad.row, firstQuad.col));
+        removed.push_back(fourthQuad);
+        values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
+        clues -= 2;
+        return true;
+    }
+    else if (firstQuad != secondQuad && firstQuad != thirdQuad && firstQuad != fourthQuad)
+    {
+        removed.push_back(firstQuad);
+        values.push_back(board.getCell(firstQuad.row, firstQuad.col));
+        removed.push_back(secondQuad);
+        values.push_back(board.getCell(secondQuad.row, secondQuad.col));
+        removed.push_back(thirdQuad);
+        values.push_back(board.getCell(thirdQuad.row, thirdQuad.col));
+        removed.push_back(fourthQuad);
+        values.push_back(board.getCell(fourthQuad.row, fourthQuad.col));
+        clues -= 4;
+        return true;
+    }
+    return false;
 }
 
 void displayBoard(const Board& board)
@@ -215,32 +194,35 @@ const int solveBoard(Board board, Points points) {
 
     std::vector<std::vector<unsigned short>> solutions;
     std::vector<unsigned short> solution;
+    std::vector<std::vector<unsigned short>> availability;
 
     auto pointIter = points.begin();
-    pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-    unsigned short attempt{ 0 };
-    if (pointIter->availability.size())
-    {
-        attempt = pointIter->availability.front();
-    }
+    availability.push_back(board.getAvailability(pointIter->row, pointIter->col));
+    auto availableIter = availability.begin();
+    auto currentAvailableIter = availableIter->begin();
     while (true)
     {
-        if (attempt != 0)
+        if (currentAvailableIter != availableIter->end())
         {
-            solution.push_back(attempt);
-            board.fillCell(pointIter->row, pointIter->col, attempt);
-            pointIter->availability.erase(pointIter->availability.begin());
+            solution.push_back(*currentAvailableIter);
+            board.fillCell(pointIter->row, pointIter->col, *currentAvailableIter);
+            currentAvailableIter = availableIter->erase(availableIter->begin());
         }
         else if (solution.size() < points.size() && pointIter != points.begin())
         {
             --pointIter;
-            board.clearCell(pointIter->row, pointIter->col);
+            board.emptyCell(pointIter->row, pointIter->col);
             solution.pop_back();
-            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
+            availableIter = availability.erase(availability.end() - 1) - 1;
+            currentAvailableIter = availableIter->begin();
             continue;
         }
 
-        if (solution.size() == points.size())
+        if (solution.empty() && pointIter == points.begin())
+        {
+            break;
+        }
+        else if (solution.size() == points.size())
         {
             solutions.push_back(solution);
             if (solutions.size() > 1)
@@ -248,26 +230,23 @@ const int solveBoard(Board board, Points points) {
                 break;
             }
 
-            board.clearCell(pointIter->row, pointIter->col);
+            board.emptyCell(pointIter->row, pointIter->col);
             solution.pop_back();
 
             if (pointIter == points.begin())
                 break;
 
             --pointIter;
-            board.clearCell(pointIter->row, pointIter->col);
+            board.emptyCell(pointIter->row, pointIter->col);
             solution.pop_back();
-            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
-        }
-        else if (solution.empty() && pointIter == points.begin())
-        {
-            break;
+            availableIter = availability.erase(availability.end() - 1) - 1;
+            currentAvailableIter = availableIter->begin();
         }
         else
         {
             ++pointIter;
-            pointIter->availability = board.getAvailability(pointIter->row, pointIter->col);
-            attempt = pointIter->availability.size() ? pointIter->availability.front() : 0;
+            availableIter = availability.insert(availability.end(), board.getAvailability(pointIter->row, pointIter->col));
+            currentAvailableIter = availableIter->begin();
         }
     }
     return solutions.size();

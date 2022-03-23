@@ -54,7 +54,7 @@ void Board::fillCell(const unsigned short row, const unsigned short col, const u
 	m_cells[row * WIDTH + col] = value;
 }
 
-void Board::clearCell(const unsigned short row, const unsigned short col)
+void Board::emptyCell(const unsigned short row, const unsigned short col)
 {
 	if (m_cells[row * WIDTH + col] != 0)
 		m_cells[row * WIDTH + col] = 0;
@@ -64,6 +64,6 @@ void Board::clearRow(const unsigned short row)
 {
 	for (unsigned short i = 0; i < WIDTH; ++i)
 	{
-		clearCell(row, i);
+		emptyCell(row, i);
 	}
 }

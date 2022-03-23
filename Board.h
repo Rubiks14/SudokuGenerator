@@ -26,7 +26,7 @@ public:
 	const unsigned short getCell(const unsigned short row, const unsigned short col) const;
 	void fillCell(const unsigned short row, const unsigned short col, const unsigned short value);
 	std::vector<unsigned short> getAvailability(const unsigned short row, const unsigned short col) const;
-	void clearCell(const unsigned short row, const unsigned short col);
+	void emptyCell(const unsigned short row, const unsigned short col);
 	void clearRow(const unsigned short row);
 
 };
