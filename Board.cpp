@@ -15,6 +15,11 @@ const unsigned short Board::operator[](std::size_t i) const
 	return m_cells[i];
 }
 
+const unsigned short Board::getCell(const unsigned short row, const unsigned short col) const
+{
+	return m_cells[row * WIDTH + col];
+}
+
 std::vector<unsigned short> Board::getAvailability(const unsigned short row, const unsigned short col) const
 {
 	std::vector<unsigned short> available{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -44,12 +49,12 @@ std::vector<unsigned short> Board::getAvailability(const unsigned short row, con
 	return available;
 }
 
-void Board::addCell(const unsigned short row, const unsigned short col, const unsigned short value)
+void Board::fillCell(const unsigned short row, const unsigned short col, const unsigned short value)
 {
 	m_cells[row * WIDTH + col] = value;
 }
 
-void Board::removeCell(const unsigned short row, const unsigned short col)
+void Board::emptyCell(const unsigned short row, const unsigned short col)
 {
 	if (m_cells[row * WIDTH + col] != 0)
 		m_cells[row * WIDTH + col] = 0;
@@ -59,6 +64,6 @@ void Board::clearRow(const unsigned short row)
 {
 	for (unsigned short i = 0; i < WIDTH; ++i)
 	{
-		removeCell(row, i);
+		emptyCell(row, i);
 	}
 }

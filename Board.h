@@ -23,9 +23,10 @@ public:
 	Board();
 
 	const unsigned short operator[](std::size_t i) const;
-	void addCell(const unsigned short row, const unsigned short col, const unsigned short value);
+	const unsigned short getCell(const unsigned short row, const unsigned short col) const;
+	void fillCell(const unsigned short row, const unsigned short col, const unsigned short value);
 	std::vector<unsigned short> getAvailability(const unsigned short row, const unsigned short col) const;
-	void removeCell(const unsigned short row, const unsigned short col);
+	void emptyCell(const unsigned short row, const unsigned short col);
 	void clearRow(const unsigned short row);
 
 };
